@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>독서록 관리 앱</title>
+    <style>
+        :root {
+            --primary-bg: #f5f5f5;
+            --header-bg: #333333;
+            --btn-blue: #2b579a;
+            --btn-red: #e51c23;
+            --status-reading: #4a148c;
+            --status-done: #000000;
+            --status-plan: #757575;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
+        body { background-color: #e0e0e0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        
+        /* 모바일 프레임 구조 */
+        .phone-container { width: 100%; max-width: 412px; height: 100vh; max-height: 846px; background: #fff; display: flex; flex-direction: column; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.2); overflow: hidden; }
+        
+        /* 헤더 스타일 */
+        header { background-color: var(--header-bg); color: white; text-align: center; padding: 15px; font-size: 18px; font-weight: bold; position: relative; height: 54px; z-index: 10; }
+        
+        /* 뒤로가기 화살표 버튼 */
+        header .back-btn { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 55px; 
+            height: 100%; 
+            color: white; 
+            cursor: pointer; 
+            display: none; /* 기본적으로 숨김 */
+            justify-content: center; 
+            align-items: center; 
+            font-size: 20px; 
+            font-weight: bold;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        header .back-btn:active { background-color: rgba(255,255,255,0.1); }
+        header .header-title-text { display: inline-block; line-height: 24px; }
+        
+        /* 콘텐츠 영역 (하단 탭바 크기만큼 패딩 확보) */
+        .content { flex: 1; overflow-y: auto; background-color: var(--primary-bg); position: relative; padding-bottom: 50px; }
+        
+        /* 페이지 전환 제어 */
+        .page { display: none; padding-bottom: 20px; }
+        .page.active { display: block; }
+
+        /* --- [페이지 1: 독서록 목록] --- */
+        .book-list { list-style: none; }
+        .book-item { display: flex; padding: 15px; border-bottom: 1px solid #ddd; background: #fff; align-items: flex-start; cursor: pointer; }
+        .book-item:active { background-color: #f0f0f0; }
+        .book-cover-img { width: 70px; height: 95px; object-fit: cover; border: 1px solid #ccc; margin-right: 15px; background: #eee; }
+        .book-info { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 14px; position: relative; min-height: 95px; }
+        .book-title { font-size: 16px; font-weight: bold; color: #000; padding-right: 60px; }
+        .book-meta { color: #666; text-decoration: underline; text-decoration-color: #ff8a8a; }
+        .book-date { color: #333; font-size: 13px; margin-top: auto; }
+        .status-badge { position: absolute; right: 0; bottom: 0; color: white; padding: 4px 8px; font-size: 12px; font-weight: bold; }
+        
+        /* 하단 고정 영역 바 */
+        .bottom-action-bar { position: absolute; bottom: 0; left: 0; width: 100%; height: 50px; display: flex; z-index: 100; background-color: #fff; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
+        .btn-full { width: 100%; height: 100%; background-color: var(--btn-blue); color: white; border: none; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; }
+        .btn-full:active { background-color: #1e3f72; }
+
+        /* --- [페이지 2: 도서 등록 및 수정] --- */
+        .form-container { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        
+        /* 사진 등록 박스 */
+        .photo-upload-box { width: 110px; height: 110px; border: 1px solid #999; margin: 0 auto 10px auto; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 12px; color: #333; cursor: pointer; background: #fff; position: relative; }
+        .photo-upload-box img { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; display: none; }
+        
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-group label { font-size: 14px; font-weight: bold; color: #333; }
+        .form-group input[type="text"], .form-group textarea { width: 100%; padding: 8px; border: 1px solid #a6a6a6; font-size: 14px; border-radius: 0; outline: none; }
+        .form-group textarea { height: 100px; resize: none; }
+        
+        /* 독서기간 날짜 정렬 */
+        .date-range { display: flex; gap: 10px; align-items: center; }
+        .date-range input[type="date"] { flex: 1; padding: 6px; border: 1px solid #a6a6a6; }
+        
+        /* 라디오 버튼 정렬 */
+        .radio-group { display: flex; gap: 15px; padding: 5px 0; }
+        .radio-group label { font-weight: normal; font-size: 14px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        
+        /* 등록/수정 페이지 하단 버튼 그룹 */
+        .btn-group { width: 100%; height: 100%; display: none; } /* 자바스크립트로 제어 */
+        .btn-save { flex: 1; background-color: var(--btn-blue); color: white; border: none; font-size: 16px; font-weight: bold; cursor: pointer; border-right: 1px solid #fff; display: flex; justify-content: center; align-items: center; }
+        .btn-save:active { background-color: #1e3f72; }
+        .btn-delete { flex: 1; background-color: var(--btn-red); color: white; border: none; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; }
+        .btn-delete:active { background-color: #b71c1c; }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <header>
+        <div id="backBtn" class="back-btn">&lt;</div>
+        <div id="headerTitle" class="header-title-text">독 서 록</div>
+    </header>
+
+    <div class="content">
+        
+        <div id="listPage" class="page active">
+            <ul id="bookListView" class="book-list">
+                </ul>
+        </div>
+
+        <div id="formPage" class="page">
+            <div class="form-container">
+                <div class="photo-upload-box" onclick="triggerFileInput()">
+                    <span id="uploadPlaceholder">+<br>사진등록</span>
+                    <img id="previewImg" src="" alt="표지 미리보기">
+                    <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileSelect(event)">
+                </div>
+
+                <div class="form-group">
+                    <label>도서제목</label>
+                    <input type="text" id="bookTitle">
+                </div>
+
+                <div class="form-group">
+                    <label>출판사</label>
+                    <input type="text" id="publisher">
+                </div>
+
+                <div class="form-group">
+                    <label>저자명</label>
+                    <input type="text" id="author">
+                </div>
+
+                <div class="form-group">
+                    <label>독서기간</label>
+                    <div class="date-range">
+                        <input type="date" id="startDate">
+                        <input type="date" id="endDate">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>독서상태</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="status" value="읽을예정" checked> 읽을예정</label>
+                        <label><input type="radio" name="status" value="읽는중"> 읽는중</label>
+                        <label><input type="radio" name="status" value="완독"> 완독</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>메모</label>
+                    <textarea id="memo"></textarea>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="bottom-action-bar">
+        <button id="navRegisterBtn" class="btn-full" onclick="openRegisterPage()">도서등록</button>
+        
+        <div id="navFormGroup" class="btn-group">
+            <button class="btn-save" onclick="saveBook()">저장</button>
+            <button class="btn-delete" id="deleteBtn" onclick="deleteBook()">삭제</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 전역 변수
+    let books = [];
+    let currentEditId = null;
+    let currentBase64Image = "";
+
+    // DOM 객체 캐싱
+    const listPage = document.getElementById('listPage');
+    const formPage = document.getElementById('formPage');
+    const headerTitle = document.getElementById('headerTitle');
+    const backBtn = document.getElementById('backBtn');
+    const bookListView = document.getElementById('bookListView');
+    
+    const navRegisterBtn = document.getElementById('navRegisterBtn');
+    const navFormGroup = document.getElementById('navFormGroup');
+    const deleteBtn = document.getElementById('deleteBtn');
+    
+    const fileInput = document.getElementById('fileInput');
+    const previewImg = document.getElementById('previewImg');
+    const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+    
+    // 앱 초기 가동
+    window.onload = function() {
+        const stored = localStorage.getItem('localBookRecords');
+        if (stored) {
+            books = JSON.parse(stored);
+        } else {
+            // 와이어프레임 기본 샘플 세팅
+            books = [
+                { id: 1, title: '바이브 코딩 배우기', publisher: '한빛미디어', author: '김코딩', startDate: '2026-01-01', endDate: '', status: '읽는중', memo: '', img: '' },
+                { id: 2, title: '엑셀 배우기', publisher: '한빛미디어', author: '박엑셀', startDate: '2026-02-03', endDate: '2026-02-12', status: '완독', memo: '', img: '' }
+            ];
+            saveToLocalStorage();
+        }
+        renderListView();
+        
+        // 뒤로가기 화살표 버튼 이벤트 부여
+        backBtn.onclick = openListPage;
+    };
+
+    function saveToLocalStorage() {
+        localStorage.setItem('localBookRecords', JSON.stringify(books));
+    }
+
+    // 목록 그리기 함수
+    function renderListView() {
+        bookListView.innerHTML = '';
+        if(books.length === 0) {
+            bookListView.innerHTML = '<li style="text-align:center; padding:40px; color:#999; font-size:14px;">등록된 도서가 없습니다.</li>';
+            return;
+        }
+
+        books.forEach(book => {
+            const li = document.createElement('li');
+            li.className = 'book-item';
+            li.onclick = () => openEditPage(book.id);
+
+            let statusColor = 'var(--status-plan)';
+            if(book.status === '읽는중') statusColor = 'var(--status-reading)';
+            if(book.status === '완독') statusColor = 'var(--status-done)';
+
+            let dateText = book.startDate || '';
+            if (book.status === '완독' && book.endDate) {
+                dateText += ` ~ ${book.endDate}`;
+            } else if (book.startDate) {
+                dateText += ' ~ ';
+            }
+
+            const imgSrc = book.img ? book.img : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="70" height="95" viewBox="0 0 70 95"><rect width="100%" height="100%" fill="%23eee"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="12" fill="%23aaa">표지없음</text></svg>';
+
+            li.innerHTML = `
+                <img class="book-cover-img" src="${imgSrc}" alt="도서 표지">
+                <div class="book-info">
+                    <div class="book-title">${book.title}</div>
+                    <div class="book-meta">${book.publisher}</div>
+                    <div class="book-meta" style="margin-top:-2px;">${book.author}</div>
+                    <div class="book-date">${dateText}</div>
+                    <span class="status-badge" style="background-color: ${statusColor}">${book.status}</span>
+                </div>
+            `;
+            bookListView.appendChild(li);
+        });
+    }
+
+    // [전환] 메인 목록 화면으로 컴백
+    function openListPage() {
+        formPage.classList.remove('active');
+        listPage.classList.add('active');
+        
+        headerTitle.innerText = "독 서 록";
+        backBtn.style.display = "none";
+        
+        // 버튼 노출 스위칭 개편
+        navFormGroup.style.display = "none";
+        navRegisterBtn.style.display = "flex";
+        
+        clearForm();
+    }
+
+    // [전환] 새 도서 등록 화면으로 진입
+    function openRegisterPage() {
+        currentEditId = null;
+        clearForm();
+        
+        listPage.classList.remove('active');
+        formPage.classList.add('active');
+        
+        headerTitle.innerText = "도서 등록";
+        backBtn.style.display = "flex";
+        
+        // 버튼 디스플레이 차단 해제 및 블록화 명시
+        navRegisterBtn.style.display = "none";
+        navFormGroup.style.display = "flex";
+        deleteBtn.style.display = "none"; // 새 등록이므로 삭제는 제외
+    }
+
+    // [전환] 기존 도서 상세 수정 화면 진입
+    function openEditPage(id) {
+        currentEditId = id;
+        const book = books.find(b => b.id === id);
+        if (!book) return;
+
+        listPage.classList.remove('active');
+        formPage.classList.add('active');
+        
+        headerTitle.innerText = "도서 등록";
+        backBtn.style.display = "flex";
+        
+        navRegisterBtn.style.display = "none";
+        navFormGroup.style.display = "flex";
+        deleteBtn.style.display = "block";
+
+        // 기존 필드 복원 데이터 인젝션
+        document.getElementById('bookTitle').value = book.title;
+        document.getElementById('publisher').value = book.publisher;
+        document.getElementById('author').value = book.author;
+        document.getElementById('startDate').value = book.startDate;
+        document.getElementById('endDate').value = book.endDate;
+        document.getElementById('memo').value = book.memo || '';
+        
+        const radios = document.getElementsByName('status');
+        for (let radio of radios) {
+            if (radio.value === book.status) radio.checked = true;
+        }
+
+        if (book.img) {
+            currentBase64Image = book.img;
+            previewImg.src = book.img;
+            previewImg.style.display = 'block';
+            uploadPlaceholder.style.display = 'none';
+        } else {
+            currentBase64Image = "";
+            previewImg.style.display = 'none';
+            uploadPlaceholder.style.display = 'block';
+        }
+    }
+
+    function clearForm() {
+        document.getElementById('bookTitle').value = '';
+        document.getElementById('publisher').value = '';
+        document.getElementById('author').value = '';
+        document.getElementById('startDate').value = '';
+        document.getElementById('endDate').value = '';
+        document.getElementById('memo').value = '';
+        document.getElementsByName('status')[0].checked = true;
+        
+        fileInput.value = '';
+        currentBase64Image = "";
+        previewImg.src = '';
+        previewImg.style.display = 'none';
+        uploadPlaceholder.style.display = 'block';
+    }
+
+    // 이미지 입출력 인터페이스
+    function triggerFileInput() { fileInput.click(); }
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentBase64Image = e.target.result;
+                previewImg.src = currentBase64Image;
+                previewImg.style.display = 'block';
+                uploadPlaceholder.style.display = 'none';
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    // 트랜잭션: 저장 프로세스
+    function saveBook() {
+        const title = document.getElementById('bookTitle').value.trim();
+        const publisher = document.getElementById('publisher').value.trim();
+        const author = document.getElementById('author').value.trim();
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const memo = document.getElementById('memo').value;
+        
+        let status = '읽을예정';
+        const radios = document.getElementsByName('status');
+        for (let radio of radios) {
+            if (radio.checked) status = radio.value;
+        }
+
+        if (!title) {
+            alert('도서 제목을 입력해주세요.');
+            return;
+        }
+
+        if (currentEditId === null) {
+            const newBook = {
+                id: Date.now(),
+                title, publisher, author, startDate, endDate, status, memo,
+                img: currentBase64Image
+            };
+            books.push(newBook);
+        } else {
+            const index = books.findIndex(b => b.id === currentEditId);
+            if (index !== -1) {
+                books[index] = {
+                    id: currentEditId,
+                    title, publisher, author, startDate, endDate, status, memo,
+                    img: currentBase64Image
+                };
+            }
+        }
+
+        saveToLocalStorage();
+        renderListView();
+        openListPage();
+    }
+
+    // 트랜잭션: 삭제 프로세스
+    function deleteBook() {
+        if (currentEditId !== null) {
+            if (confirm('이 독서록 항목을 정말 삭제하시겠습니까?')) {
+                books = books.filter(b => b.id !== currentEditId);
+                saveToLocalStorage();
+                renderListView();
+                openListPage();
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
